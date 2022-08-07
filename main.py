@@ -1,21 +1,34 @@
 """
-This is the entry point for the script. 
-It handles command line args, and application logic.
+This is the entry point for the script.
+It handles command line args, and logic for data cleaning/data entry in DB.
+See README.md for more information.
 """
-from pyparsing import ParseException
-import proccessImages as pi
-# import sqlGeneration as sg
+
+import process_imgs as pim
+import sql_generator as sg
 import argparse
 import os
-import psycopg2
 from dotenv import load_dotenv
 from datetime import date
 
-
 def main():
     load_dotenv()
-    comline_parser()
-    
+    args = comline_parser()
+    if (args.file):
+        pass
+    else:
+        fdata_arr = []
+        upload_dir = os.getenv("UPLOAD_DIR")
+        FileTable = sg.file_table_gen(args.city, args.month, args.year)
+        sg.Base.metadata.create_all(sg.engine)
+
+        for filename in os.listdir(upload_dir):
+            img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
+            img_mdata["file_digest"] = pim.file_digest(img_mdata)
+            fdata_arr.append(img_mdata)
+        sg.add_file_data(fdata_arr, FileTable)
+        
+
     # try:
     #     print('Connecting to the PostgreSQL database...')
     #     conn = psycopg2.connect(
@@ -74,7 +87,7 @@ def comline_parser():
 
     args = parser.parse_args()
     args.month = args.month[:3].upper()
-
+    args.city = args.city.upper()
     if not (args.month in months):
         raise Exception("Not a valid month")
     if not (2011 < args.year <= date.today().year):
@@ -89,10 +102,15 @@ def comline_parser():
             if not valid:
                 raise Exception("No city matching csv")
 
-    except FileNotFoundError as e:
-        raise e(f"cities.csv not found... using {args.city} for table naming")
+    except FileNotFoundError:
+        print(f"cities.csv not found... using {args.city} for table naming")
     except:
         raise Exception(f'city "{args.city}" does not match any city found in cities.csv')
+    
+    if args.file:
+        if not os.path.exists(args.file[0]):
+            raise Exception(f"File {args.file[0]} not found")
+
     return args
 
 if __name__ == '__main__':
