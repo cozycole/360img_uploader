@@ -36,7 +36,7 @@ def file_table_gen(city, month, year):
         geom = Column(Geography('POINT'))
 
         def __repr__(self):
-            return f"<FileData(address={self.file_digest}, lat={self.lat}, lon={self.lon}, geom={self.geom})>"
+            return f"<FileData(address={self.digest}, lat={self.lat}, lon={self.lon}, geom={self.geom})>"
     return FileData
 
 def add_file_data(data_arr, table_class):
@@ -44,12 +44,40 @@ def add_file_data(data_arr, table_class):
     for data in data_arr:
         obj_arr.append(table_class(
             digest=data["file_digest"], 
-            timestamp=data['timestamp'], 
+            timestamp=data["timestamp"], 
             lat=data["lat"], 
             lon=data["lon"]))
     
     session.add_all(obj_arr)
     session.commit()
+
+def update_latlon(file_table):
+    # The purpose of this function is to create
+    # a heading value for each file in order to
+    # create yaw values
+    latlon_list = session.\
+                    query(file_table).\
+                    order_by(file_table.timestamp).\
+                    all()
+    for curr, next in zip(latlon_list, latlon_list[1:]):
+        curr.next_lat = next.lat
+        curr.next_lon = next.lon
+    # generate the next lat/lon for the last record
+    # by extending the line formed by the previous two points
+    if len(latlon_list) > 2:
+        next_lat, next_lon = est_latlon_list(latlon_list[-1], latlon_list[-2])
+        latlon_list[-1].next_lat = next_lat
+        latlon_list[-1].next_lon = next_lon
+        print('EXECUTED!',next_lat,next_lon)
+    session.commit()
+
+def est_latlon_list(curr, last):
+    # estimates the next latlon from previous two points
+    next_lat = curr.lat + curr.lat - last.lat
+    next_lon = curr.lon + curr.lon - last.lon
+    return (next_lat, next_lon)
+
+
     
 # home = Addresses(address="2370 Park Ridge Lane", lat=44.0212259, lon=-123.1217560)
 # nullAddress = Addresses(address="null address", lat=00.00000, lon=-00.00000)

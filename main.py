@@ -22,13 +22,13 @@ def main():
         FileTable = sg.file_table_gen(args.city, args.month, args.year)
         sg.Base.metadata.create_all(sg.engine)
 
-        for filename in os.listdir(upload_dir):
-            img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
-            img_mdata["file_digest"] = pim.file_digest(img_mdata)
-            fdata_arr.append(img_mdata)
-        sg.add_file_data(fdata_arr, FileTable)
-        
-
+        # for filename in os.listdir(upload_dir):
+        #     img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
+        #     img_mdata["file_digest"] = pim.file_digest(img_mdata)
+        #     fdata_arr.append(img_mdata)
+        # sg.add_file_data(fdata_arr, FileTable)
+        sg.update_latlon(FileTable)
+    sg.session.close()
     # try:
     #     print('Connecting to the PostgreSQL database...')
     #     conn = psycopg2.connect(
