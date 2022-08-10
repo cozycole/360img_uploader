@@ -1,6 +1,7 @@
 """
 This is the entry point for the script.
-It handles command line args, and logic for data cleaning/data entry in DB.
+It handles command line args, and logic for 
+data cleaning/data entry in to postgres DB.
 See README.md for more information.
 """
 
@@ -14,42 +15,24 @@ from datetime import date
 def main():
     load_dotenv()
     args = comline_parser()
-    if (args.file):
-        pass
-    else:
-        fdata_arr = []
-        upload_dir = os.getenv("UPLOAD_DIR")
-        FileTable = sg.file_table_gen(args.city, args.month, args.year)
-        sg.Base.metadata.create_all(sg.engine)
 
-        # for filename in os.listdir(upload_dir):
-        #     img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
-        #     img_mdata["file_digest"] = pim.file_digest(img_mdata)
-        #     fdata_arr.append(img_mdata)
-        # sg.add_file_data(fdata_arr, FileTable)
-        sg.update_latlon(FileTable)
+    fdata_arr = []
+    upload_dir = os.getenv("UPLOAD_DIR")
+    FileTable = sg.file_table_gen(args.city, args.month, args.year)
+    sg.Base.metadata.create_all(sg.engine)
+
+    for filename in os.listdir(upload_dir):
+        img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
+        img_mdata["file_digest"] = pim.file_digest(img_mdata)
+        fdata_arr.append(img_mdata)
+    sg.add_file_data(fdata_arr, FileTable)
+    sg.update_latlon(FileTable)
+    sg.update_geo_points(FileTable)
+    
+
+
+    sg.session.commit()
     sg.session.close()
-    # try:
-    #     print('Connecting to the PostgreSQL database...')
-    #     conn = psycopg2.connect(
-    #         host=os.getenv("DB_HOST"),
-    #         database=os.getenv("DB_NAME"),
-    #         user=os.getenv("DB_USER"),
-    #         password=os.getenv("DB_PASSWORD")
-    #     )
-
-    #     upload_dir = os.getenv("UPLOAD_DIR")
-    #     for filename in os.listdir(upload_dir):
-    #         file_data = pi.extractMetadata(f"{upload_dir}/{filename}")
-    #         digest, file_path = pi.createFilePath(file_data)
-    #         pi.addEntry(conn, digest, file_data["lat"], file_data["lon"], file_data["timestamp"])
-    #         # executeKrpano(f"{upload_dir}/{filename}", file_path)
-    # except psycopg2.DatabaseError as e:
-    #     print(e)
-    # finally:
-    #     if conn is not None:
-    #         conn.close()
-    #         print('Database connection closed.')
 
 
 def comline_parser():
@@ -95,12 +78,13 @@ def comline_parser():
     try:
         with open("cities.csv", "r") as cities:
             valid = False
-            for c in cities.readlines():
+            cities_csv = cities.readlines()
+            for c in cities_csv:
                 if args.city.lower() == c.replace('"', "").strip().lower():
                     valid = True
                     break
             if not valid:
-                raise Exception("No city matching csv")
+                raise Exception(f"No city matching csv\n{cities_csv}")
 
     except FileNotFoundError:
         print(f"cities.csv not found... using {args.city} for table naming")
@@ -115,3 +99,24 @@ def comline_parser():
 
 if __name__ == '__main__':
     main()
+    # try:
+    #     print('Connecting to the PostgreSQL database...')
+    #     conn = psycopg2.connect(
+    #         host=os.getenv("DB_HOST"),
+    #         database=os.getenv("DB_NAME"),
+    #         user=os.getenv("DB_USER"),
+    #         password=os.getenv("DB_PASSWORD")
+    #     )
+
+    #     upload_dir = os.getenv("UPLOAD_DIR")
+    #     for filename in os.listdir(upload_dir):
+    #         file_data = pi.extractMetadata(f"{upload_dir}/{filename}")
+    #         digest, file_path = pi.createFilePath(file_data)
+    #         pi.addEntry(conn, digest, file_data["lat"], file_data["lon"], file_data["timestamp"])
+    #         # executeKrpano(f"{upload_dir}/{filename}", file_path)
+    # except psycopg2.DatabaseError as e:
+    #     print(e)
+    # finally:
+    #     if conn is not None:
+    #         conn.close()
+    #         print('Database connection closed.')

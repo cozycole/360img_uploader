@@ -24,19 +24,19 @@ session = Session()
 def file_table_gen(city, month, year):
     class FileData(Base):
         # Table metadata
-        __tablename__ = f'files_{city}/{month}{year}'
+        __tablename__ = f'files_{city}_{month}{year}'
 
-        id = Column(Integer, Sequence('file_id_seq'), primary_key=True)
-        digest = Column(String)
-        lat = Column(Float)
-        lon = Column(Float)
-        timestamp = Column(Integer)
+        id = Column(Integer, primary_key=True, nullable=False)
+        digest = Column(String,nullable=False)
+        lat = Column(Float, nullable=False)
+        lon = Column(Float, nullable=False)
+        timestamp = Column(Integer, nullable=False)
         next_lat = Column(Float)
         next_lon = Column(Float)
         geom = Column(Geography('POINT'))
 
         def __repr__(self):
-            return f"<FileData(address={self.digest}, lat={self.lat}, lon={self.lon}, geom={self.geom})>"
+            return f"<FileData(address={self.digest}, lat={self.lat}, lon={self.lon}, timestamp={self.timestamp})>"
     return FileData
 
 def add_file_data(data_arr, table_class):
@@ -49,7 +49,6 @@ def add_file_data(data_arr, table_class):
             lon=data["lon"]))
     
     session.add_all(obj_arr)
-    session.commit()
 
 def update_latlon(file_table):
     # The purpose of this function is to create
@@ -69,7 +68,12 @@ def update_latlon(file_table):
         latlon_list[-1].next_lat = next_lat
         latlon_list[-1].next_lon = next_lon
         print('EXECUTED!',next_lat,next_lon)
-    session.commit()
+
+def update_geo_points(table):
+    session.execute(
+        """UPDATE "%s" SET
+        geom=ST_SetSRID(ST_MakePoint(lon, lat), 4326);""" % table.__tablename__)
+    
 
 def est_latlon_list(curr, last):
     # estimates the next latlon from previous two points
