@@ -1,0 +1,5 @@
+cond_id, descriptor
+1, notDistressed
+2, distressed
+3, superlist
+4, undetermined
