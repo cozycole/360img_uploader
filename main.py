@@ -4,34 +4,70 @@ It handles command line args, and logic for
 data cleaning/data entry in to postgres DB.
 See README.md for more information.
 """
-
-import process_imgs as pim
-import sql_generator as sg
-import argparse
+import src.process_imgs as pim
+import src.sql_generator as sg
+from src.sql_generator import FileData, Addresses, FileAddrMap
 import os
+from os.path import join
+import argparse
 from dotenv import load_dotenv
 from datetime import date
 
 def main():
     load_dotenv()
-    args = comline_parser()
+    # args = comline_parser()
 
-    fdata_arr = []
+    fdata_list = []
+    img_time_diff = 5 # seconds
     upload_dir = os.getenv("UPLOAD_DIR")
-    FileTable = sg.file_table_gen(args.city, args.month, args.year)
-    sg.Base.metadata.create_all(sg.engine)
+    tile_dir = os.getenv("TILE_DIR")
+    krpano_dir = os.getenv("KRPANO_DIR")
+    # following specify dirs images will be moved to after
+    # processing depending on whether they're tilized or not
+    processed_dir = os.getenv("PROCESSED_DIR") # testing
+    trash_dir = os.getenv("TRASH_DIR") # testing
 
     for filename in os.listdir(upload_dir):
-        img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
-        img_mdata["file_digest"] = pim.file_digest(img_mdata)
-        fdata_arr.append(img_mdata)
-    sg.add_file_data(fdata_arr, FileTable)
-    sg.update_latlon(FileTable)
-    sg.update_geo_points(FileTable)
+        if filename[0] != '.':
+            print(f"{upload_dir}/{filename}")
+            img_mdata = pim.extract_metadata(f"{upload_dir}/{filename}")
+            img_mdata["digest"] = pim.file_digest(img_mdata)
+            fdata_list.append(img_mdata)
+            os.rename(join(upload_dir, filename), join(upload_dir, img_mdata["digest"] + ".jpg"))
     
+    # group photos based on timestamp proximity
+    fdata_list.sort(key=lambda x:x["timestamp"])
+    fdata_list = pim.group_by_diff(fdata_list, img_time_diff)
 
-
-    sg.session.commit()
+    for group in fdata_list:
+        sg.insert_file_data(group, FileData)
+        sg.update_latlon(FileData)
+        sg.update_geo_points(FileData)
+        sg.addr_wthin_radius(FileData, Addresses, FileAddrMap)
+        sg.session.commit()
+        sg.delete_unmapped_files(FileData, FileAddrMap)
+        sg.session.commit()
+        sg.set_yaw_vals(FileData, Addresses, FileAddrMap)
+        sg.session.commit()
+    # tilize all mapped files
+    sub_query =  (sg.session.query(FileAddrMap.file_id)
+                    .distinct())
+    query = (sg.session
+                    .query(FileData.digest)
+                    .filter(FileData.id.in_(sub_query))).all()
+    
+    tilize_list = [r for (r,) in query]
+    print(tilize_list)
+    for filename in os.listdir(upload_dir):
+        #  to remove [:-4] .jpg extension
+        if filename[:-4] in tilize_list:
+            filepath = join(upload_dir, filename)
+            print(f"filepath: {filepath}\ntile_dir: {tile_dir}\n krpano_dir: {krpano_dir}")
+            pim.execute_krpano(filepath,filename[:-4], tile_dir, krpano_dir)
+            os.replace(filepath, join(processed_dir,filename))
+        else:
+            os.replace(join(upload_dir,filename), join(trash_dir,filename))
+        
     sg.session.close()
 
 
@@ -99,24 +135,3 @@ def comline_parser():
 
 if __name__ == '__main__':
     main()
-    # try:
-    #     print('Connecting to the PostgreSQL database...')
-    #     conn = psycopg2.connect(
-    #         host=os.getenv("DB_HOST"),
-    #         database=os.getenv("DB_NAME"),
-    #         user=os.getenv("DB_USER"),
-    #         password=os.getenv("DB_PASSWORD")
-    #     )
-
-    #     upload_dir = os.getenv("UPLOAD_DIR")
-    #     for filename in os.listdir(upload_dir):
-    #         file_data = pi.extractMetadata(f"{upload_dir}/{filename}")
-    #         digest, file_path = pi.createFilePath(file_data)
-    #         pi.addEntry(conn, digest, file_data["lat"], file_data["lon"], file_data["timestamp"])
-    #         # executeKrpano(f"{upload_dir}/{filename}", file_path)
-    # except psycopg2.DatabaseError as e:
-    #     print(e)
-    # finally:
-    #     if conn is not None:
-    #         conn.close()
-    #         print('Database connection closed.')
