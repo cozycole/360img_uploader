@@ -1,7 +1,7 @@
 # 360img_uploader
 
 Command line tool that loads the time and location metadata of 360 photos into a postgres database.
-It then tileizes them if they meet spatial requirements (the coordinates are within a certain distance
+It then tileizes them and determines yaw values for the viewer if they meet spatial requirements (the coordinates are within a certain distance
 of a house in the address db table).
 
 A PostgreSQL db must be used. This script relies on functions from the POSTGIS extension to properly load and maintain the necessary image metadata.
